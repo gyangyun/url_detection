@@ -3,6 +3,10 @@ import util from 'util'
 import redis from 'redis'
 import config from 'config'
 import { getDomain } from 'tldjs'
+// import tapi from 'tapi'
+
+// tapi.init('./licence.conf', 'cloud')
+// const detect = util.promisify(tapi.detectSync)
 
 const log = logger(module)
 const recordsController = {}
@@ -13,13 +17,11 @@ client.select(1)
 
 const clientHgetall = util.promisify(client.hgetall).bind(client)
 const clientHmset = util.promisify(client.hmset).bind(client)
+const clientExpire = util.promisify(client.expire).bind(client)
 
 const patternUrl = /^.*(?:[^\.\/\\:]+\.){1,}[^\.\/\\:?]+/
 
 recordsController.show = async (ctx, next) => {
-/* 注意这里有两个正则：
-正则1. 规范dname，只要域名，不需要协议类型，例如http://www.baidu.com，则只需要baidu.com，此外防止别人使用api查询时使用垃圾数据，导致将大量垃圾数据写入数据库
-正则2. 有些域名的二级域名仍然是公用顶级域名，此时获取三级域名 */
   try {
     let rv = {}
     const url = ctx.query.url
@@ -30,12 +32,20 @@ recordsController.show = async (ctx, next) => {
         rv = {url: url, urlType: 3, evilClass: 0}
       } else {
         // 第三次Redis过滤
-        const urlLite = urlMatch[0]
-        const record = await clientHgetall(urlLite)
+        const record = await clientHgetall(url)
         if (record) {
           rv = {url: url, urlType: record['urlType'], evilClass: record['evilClass']}
         } else {
+/*
           // 第四次SDK过滤
+          const record = await detect(url)
+          if (record['evilClass'] !== 0 || record['urlType'] === 3 || record['urlType'] === 4) {
+            await clientHmset(url, record)
+            await clientExpire(url, 60 * 60 * 24 * 7)
+          }
+          rv = {url: url, urlType: record['urlType'], evilClass: record['evilClass']}
+ */
+          // 第四次，都未匹配的域名返回未知，启用SDK时不需要此步骤，否则需要此步骤
           rv = {url: url, urlType: 0, evilClass: 0}
         }
       }
@@ -61,58 +71,49 @@ recordsController.show = async (ctx, next) => {
 recordsController.display = async (ctx, next) => {
   try {
     const urls = ctx.request.body
-    const rvOld = new Map()
-    // rvOld.set('http://www.baidu.com/s?=sssss', {url: 'www.baidu.com', notDone: false, urlLite: 'www.baidu.com'})
-    // rvOld.set('www.qq.com', {url: 'www.qq.com', notDone: true, urlLite: 'www.qq.com'})
-    // rvOld.set('www.189.cn', {url: 'www.189.cn', notDone: true, urlLite: 'www.189.cn'})
-    // rvOld.set('www.bilibili.com', {url: 'www.bilibili.com', notDone: false, urlLite: 'www.bilibili.com'})
     if (urls.length > 20) {
       throw new ctx.APIError('records:display_error', 'MAX limit 20/request')
     }
     // 这里采用forEach的方式进行不规范的域名分组
     // 第一次合法域名过滤
-    urls.map(url => {
-      try {
-        rvOld.set(url, {urlLite: url.match(patternUrl)[0], url: url, notDone: true})
-      } catch (e) {
-        rvOld.set(url, {url: url, urlType: 0, evilClass: 0, notDone: false})
-      }
-    })
+    // 过滤出合法域名，生成filterUrls1
+    const filterdUrls1 = urls.filter(url => url.match(patternUrl))
+    // 非法域名直接返回未知
+    const result1 = urls.filter(url => !(filterdUrls1.includes(url))).map(url => ({url: url, urlType: 0, evilClass: 0}))
 
     // 第二次白名单过滤
-    for (const [key, value] of rvOld) {
-       if (value['notDone']) {
-        if (tldWhitelist.includes(getDomain(key))) {
-          value['urlType'] = 3
-          value['evilClass'] = 0
-          value['notDone'] = false
-        }
-      }
-    }
-    // 第三次Redis过滤，Redis只存域名和站点级别，这里需要并行异步查询Redis
-    const mapTmp = new Map()
-    const filtered3 = [...rvOld.values()].filter(obj => obj['notDone'])
-    filtered3.forEach(obj => mapTmp.set(obj['urlLite'], obj['url']))
-    const resultRedis = await Promise.all([...mapTmp.keys()].map(urlLite => clientHgetall(urlLite))).catch([])
-    resultRedis.filter(x => x ? true : false).forEach(record => {
-      rvOld.get(mapTmp.get(record['url']))['urlType'] = record['urlType']
-      rvOld.get(mapTmp.get(record['url']))['evilClass'] = record['evilClass']
-      rvOld.get(mapTmp.get(record['url']))['notDone'] = false
-    })
-    // 第四次进行SDK过滤
-    // 待添加:  <25-08-17, GuoYangyun> //
-    for (const [key, value] of rvOld) {
-       if (value['notDone']) {
-        value['urlType'] = 0
-        value['evilClass'] = 0
-        value['notDone'] = false
-      }
-    }
-    const rv = [...rvOld.values()].map(obj => ({
-      url: obj['url'],
-      urlType: obj['urlType'],
-      evilClass: obj['evilClass']
+    // 过滤出白名单中“不存在”的域名，生成filterUrls2
+    const filterdUrls2 = filterdUrls1.filter(url => !(tldWhitelist.includes(getDomain(url))))
+    // (上次的filterdUrls1 - filterdUrls2)则是白名单中“存在 ”的域名，则返回安全
+    const result2 = filterdUrls1.filter(url => !(filterdUrls2.includes(url))).map(url => ({url: url, urlType: 3, evilClass: 0}))
+
+    // 第三次Redis过滤，这里需要并行异步查询Redis
+    const resultRedisOld = await Promise.all(filterdUrls2.map(url => clientHgetall(url))).catch([])
+    const resultRedis = resultRedisOld.filter(x => x ? true : false)
+    const result3 = resultRedis.map(record => ({url: record['url'], urlType: record['urlType'], evilClass: record['evilClass']}))
+    // (上次的filterdUrls2 - Redis中查到记录的)则是Redis中“不存在”的域名，生成filterUrls3
+    const filterdUrls3 = filterdUrls2.filter(url => !(result3.map(record => record['url']).includes(url)))
+/*
+    // 第四次SDK过滤
+    const resultSDKOld = await Promise.all(filterdUrls3.map(url => detect(url))).catch([])
+    const resultSDK = resultSDKOld.filter(x => x ? true : false)
+    const resultSDKLite = resultSDK.filter(record => (record['evilClass'] !== 0 || record['urlType'] === 3 || record['urlType'] === 4))
+    // Redis中“存在”的域名返回查询结果
+    await Promise.all(resultSDKLite.map(record => {
+      clientHmset(record['url'], record)
     }))
+    await Promise.all(resultSDKLite.map(record => {
+      clientExpire(record['url'], 60 * 60 * 24 * 7)
+    }))
+    // SDK中“存在”的域名返回查询结果
+    const result4 = resultSDK.map(record => ({url: record['url'], urlType: record['urlType'], evilClass: record['evilClass']}))
+    // (上次的filterdUrls3 - SDK中查到记录的)则是SDK中“不存在”的域名，生成filterUrls4，但是认为SDK是最后一个环节，未知的它也会返回
+    // const filterdUrls4 = filterdUrls3.filter(url => !(result4.map(record => record['url']).includes(url)))
+ */
+    // 第四次，剩余的域名返回未知，启用SDK时不需要此步骤，否则需要此步骤
+    const result4 = filterdUrls3.map(url => ({url: url, urlType: 0, evilClass: 0}))
+
+    const rv = [...result1, ...result2, ...result3, ...result4]
     ctx.rest({
       code: 'success',
       message: 'Displayed some domain names successfully',
