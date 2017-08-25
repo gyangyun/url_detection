@@ -1,0 +1,15 @@
+{
+  "Customer": {
+    "dbConfig": {
+        "database": "development",
+        "username": "gdgyy",
+        "password": "qwe123!Q",
+        "host": "localhost",
+        "port": 3306,
+        "dialect": "mysql"
+    },
+    "credit": {
+      "initialDays": 30
+    }
+  }
+}
