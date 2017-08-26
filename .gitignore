@@ -2,5 +2,6 @@
 build/
 logs/
 node_modules/
+!node_modules/tctapi
 yarn.lock
 yarn-error.log

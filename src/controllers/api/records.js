@@ -3,10 +3,11 @@ import util from 'util'
 import redis from 'redis'
 import config from 'config'
 import { getDomain } from 'tldjs'
-// import tapi from 'tapi'
+// import tctapi from 'tctapi'
 
-// tapi.init('./licence.conf', 'cloud')
-// const detect = util.promisify(tapi.detectSync)
+// tctapi.init('./licence.conf', 'cloud')
+// const detect = util.promisify(tctapi.detectAsync)
+// const detect = util.promisify(tctapi.detectSync)
 
 const log = logger(module)
 const recordsController = {}
@@ -36,8 +37,8 @@ recordsController.show = async (ctx, next) => {
         if (record) {
           rv = {url: url, urlType: record['urlType'], evilClass: record['evilClass']}
         } else {
-/*
           // 第四次SDK过滤
+/*
           const record = await detect(url)
           if (record['evilClass'] !== 0 || record['urlType'] === 3 || record['urlType'] === 4) {
             await clientHmset(url, record)
@@ -93,8 +94,9 @@ recordsController.display = async (ctx, next) => {
     const result3 = resultRedis.map(record => ({url: record['url'], urlType: record['urlType'], evilClass: record['evilClass']}))
     // (上次的filterdUrls2 - Redis中查到记录的)则是Redis中“不存在”的域名，生成filterUrls3
     const filterdUrls3 = filterdUrls2.filter(url => !(result3.map(record => record['url']).includes(url)))
-/*
+
     // 第四次SDK过滤
+/*
     const resultSDKOld = await Promise.all(filterdUrls3.map(url => detect(url))).catch([])
     const resultSDK = resultSDKOld.filter(x => x ? true : false)
     const resultSDKLite = resultSDK.filter(record => (record['evilClass'] !== 0 || record['urlType'] === 3 || record['urlType'] === 4))
