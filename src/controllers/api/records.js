@@ -22,7 +22,7 @@ const patternUrl = /^.*(?:[^\.\/\\:]+\.){1,}[^\.\/\\:?]+/
 let detect
 if (SDKEnable) {
   const tctapi = require('tctapi')
-  tctapi.init('.config/licence.conf', 'cloud')
+  tctapi.init('./config/licence.conf', 'cloud')
   // detect = util.promisify(tctapi.detectAsync)
   detect = util.promisify(tctapi.detectSync)
 }
