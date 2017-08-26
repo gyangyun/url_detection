@@ -1,5 +1,5 @@
 .vscode/
-build/
+/build/
 logs/
 !node_modules/
 node_modules/*
