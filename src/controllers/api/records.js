@@ -46,12 +46,12 @@ recordsController.show = async (ctx, next) => {
           rv = {url: url, urlType: record['urlType'], evilClass: record['evilClass']}
  */
           // 第四次，都未匹配的域名返回未知，启用SDK时不需要此步骤，否则需要此步骤
-          rv = {url: url, urlType: 0, evilClass: 0}
+          rv = {url: url, urlType: 1, evilClass: 0}
         }
       }
     } else {
       // 第一次合法域名过滤
-      rv = {url: url, urlType: 0, evilClass: 0}
+      rv = {url: url, urlType: 1, evilClass: 0}
     }
     ctx.rest({
       code: 'success',
@@ -79,7 +79,7 @@ recordsController.display = async (ctx, next) => {
     // 过滤出合法域名，生成filterUrls1
     const filterdUrls1 = urls.filter(url => url.match(patternUrl))
     // 非法域名直接返回未知
-    const result1 = urls.filter(url => !(filterdUrls1.includes(url))).map(url => ({url: url, urlType: 0, evilClass: 0}))
+    const result1 = urls.filter(url => !(filterdUrls1.includes(url))).map(url => ({url: url, urlType: 1, evilClass: 0}))
 
     // 第二次白名单过滤
     // 过滤出白名单中“不存在”的域名，生成filterUrls2
@@ -111,7 +111,7 @@ recordsController.display = async (ctx, next) => {
     // const filterdUrls4 = filterdUrls3.filter(url => !(result4.map(record => record['url']).includes(url)))
  */
     // 第四次，剩余的域名返回未知，启用SDK时不需要此步骤，否则需要此步骤
-    const result4 = filterdUrls3.map(url => ({url: url, urlType: 0, evilClass: 0}))
+    const result4 = filterdUrls3.map(url => ({url: url, urlType: 1, evilClass: 0}))
 
     const rv = [...result1, ...result2, ...result3, ...result4]
     ctx.rest({
