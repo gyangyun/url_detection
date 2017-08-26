@@ -3,16 +3,13 @@ import util from 'util'
 import redis from 'redis'
 import config from 'config'
 import { getDomain } from 'tldjs'
-// import tctapi from 'tctapi'
-
-// tctapi.init('./licence.conf', 'cloud')
-// const detect = util.promisify(tctapi.detectAsync)
-// const detect = util.promisify(tctapi.detectSync)
 
 const log = logger(module)
 const recordsController = {}
 const redisUrl = config.get('Customer.redisUrl')
 const tldWhitelist = config.get('Customer.tldWhitelist')
+const limitQueries = config.get('Customer.limitQueries')
+const SDKEnable = config.get('Customer.SDKEnable')
 const client = redis.createClient(redisUrl)
 client.select(1)
 
@@ -21,6 +18,14 @@ const clientHmset = util.promisify(client.hmset).bind(client)
 const clientExpire = util.promisify(client.expire).bind(client)
 
 const patternUrl = /^.*(?:[^\.\/\\:]+\.){1,}[^\.\/\\:?]+/
+
+let detect
+if (SDKEnable) {
+  const tctapi = require('tctapi')
+  tctapi.init('./licence.conf', 'cloud')
+  // detect = util.promisify(tctapi.detectAsync)
+  detect = util.promisify(tctapi.detectSync)
+}
 
 recordsController.show = async (ctx, next) => {
   try {
@@ -38,16 +43,16 @@ recordsController.show = async (ctx, next) => {
           rv = {url: url, urlType: record['urlType'], evilClass: record['evilClass']}
         } else {
           // 第四次SDK过滤
-/*
-          const record = await detect(url)
-          if (record['evilClass'] !== 0 || record['urlType'] === 3 || record['urlType'] === 4) {
-            await clientHmset(url, record)
-            await clientExpire(url, 60 * 60 * 24 * 7)
+          if (SDKEnable) {
+            const record = await detect(url)
+            if (record['evilClass'] !== 0 || record['urlType'] === 3 || record['urlType'] === 4) {
+              await clientHmset(url, record)
+              await clientExpire(url, 60 * 60 * 24 * 7)
+            }
+            rv = {url: url, urlType: record['urlType'], evilClass: record['evilClass']}
+          } else {
+            rv = {url: url, urlType: 1, evilClass: 0}
           }
-          rv = {url: url, urlType: record['urlType'], evilClass: record['evilClass']}
- */
-          // 第四次，都未匹配的域名返回未知，启用SDK时不需要此步骤，否则需要此步骤
-          rv = {url: url, urlType: 1, evilClass: 0}
         }
       }
     } else {
@@ -72,7 +77,7 @@ recordsController.show = async (ctx, next) => {
 recordsController.display = async (ctx, next) => {
   try {
     const urls = ctx.request.body
-    if (urls.length > 20) {
+    if (urls.length > limitQueries) {
       throw new ctx.APIError('records:display_error', 'MAX limit 20/request')
     }
     // 这里采用forEach的方式进行不规范的域名分组
@@ -95,25 +100,26 @@ recordsController.display = async (ctx, next) => {
     // (上次的filterdUrls2 - Redis中查到记录的)则是Redis中“不存在”的域名，生成filterUrls3
     const filterdUrls3 = filterdUrls2.filter(url => !(result3.map(record => record['url']).includes(url)))
 
+    let result4 = []
     // 第四次SDK过滤
-/*
-    const resultSDKOld = await Promise.all(filterdUrls3.map(url => detect(url))).catch([])
-    const resultSDK = resultSDKOld.filter(x => x ? true : false)
-    const resultSDKLite = resultSDK.filter(record => (record['evilClass'] !== 0 || record['urlType'] === 3 || record['urlType'] === 4))
-    // Redis中“存在”的域名返回查询结果
-    await Promise.all(resultSDKLite.map(record => {
-      clientHmset(record['url'], record)
-    }))
-    await Promise.all(resultSDKLite.map(record => {
-      clientExpire(record['url'], 60 * 60 * 24 * 7)
-    }))
-    // SDK中“存在”的域名返回查询结果
-    const result4 = resultSDK.map(record => ({url: record['url'], urlType: record['urlType'], evilClass: record['evilClass']}))
-    // (上次的filterdUrls3 - SDK中查到记录的)则是SDK中“不存在”的域名，生成filterUrls4，但是认为SDK是最后一个环节，未知的它也会返回
-    // const filterdUrls4 = filterdUrls3.filter(url => !(result4.map(record => record['url']).includes(url)))
- */
-    // 第四次，剩余的域名返回未知，启用SDK时不需要此步骤，否则需要此步骤
-    const result4 = filterdUrls3.map(url => ({url: url, urlType: 1, evilClass: 0}))
+    if (SDKEnable) {
+      const resultSDKOld = await Promise.all(filterdUrls3.map(url => detect(url))).catch([])
+      const resultSDK = resultSDKOld.filter(x => x ? true : false)
+      const resultSDKLite = resultSDK.filter(record => (record['evilClass'] !== 0 || record['urlType'] === 3 || record['urlType'] === 4))
+      // Redis中“存在”的域名返回查询结果
+      await Promise.all(resultSDKLite.map(record => {
+        clientHmset(record['url'], record)
+      }))
+      await Promise.all(resultSDKLite.map(record => {
+        clientExpire(record['url'], 60 * 60 * 24 * 7)
+      }))
+      // SDK中“存在”的域名返回查询结果
+      result4 = resultSDK.map(record => ({url: record['url'], urlType: record['urlType'], evilClass: record['evilClass']}))
+      // (上次的filterdUrls3 - SDK中查到记录的)则是SDK中“不存在”的域名，生成filterUrls4，但是认为SDK是最后一个环节，未知的它也会返回
+      // const filterdUrls4 = filterdUrls3.filter(url => !(result4.map(record => record['url']).includes(url)))
+    } else {
+      result4 = filterdUrls3.map(url => ({url: url, urlType: 1, evilClass: 0}))
+    }
 
     const rv = [...result1, ...result2, ...result3, ...result4]
     ctx.rest({

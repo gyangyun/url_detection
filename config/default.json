@@ -17,6 +17,8 @@
         // Set low for development
         "initialDays": 1
     },
+    "limitQueries": 30,
+    "SDKEnable": false,
     "tldWhitelist" : [
         "10086.cn",
         "icbc.com.cn",
