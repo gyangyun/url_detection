@@ -19,9 +19,13 @@
         // Set low for development
         "initialDays": 1
     },
+    // 多域名查询时每次最多可查询多少个url
     "limitQueries": 100,
+    // redis数据库缓存查询结果的最大时长，默认是7天
     "timeoutCache": 604800,
+    // 是否启用第三方库接口
     "SDKEnable": false,
+    // 二级域名白名单配置
     "tldWhitelist" : [
         "10086.cn",
         "icbc.com.cn",
