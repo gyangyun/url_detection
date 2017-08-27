@@ -20,6 +20,7 @@
         "initialDays": 1
     },
     "limitQueries": 100,
+    "timeoutCache": 604800,
     "SDKEnable": false,
     "tldWhitelist" : [
         "10086.cn",

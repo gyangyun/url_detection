@@ -10,6 +10,7 @@ const redisUrl = config.get('Customer.redisUrl')
 const tldWhitelist = config.get('Customer.tldWhitelist')
 const limitQueries = config.get('Customer.limitQueries')
 const SDKEnable = config.get('Customer.SDKEnable')
+const timeoutCache = config.get('Customer.timeoutCache')
 const client = redis.createClient(redisUrl)
 client.select(1)
 
@@ -47,7 +48,7 @@ recordsController.show = async (ctx, next) => {
             const record = await detect(url)
             if (record['evilClass'] !== 0 || record['urlType'] === 3 || record['urlType'] === 4) {
               await clientHmset(url, record)
-              await clientExpire(url, 60 * 60 * 24 * 7)
+              await clientExpire(url, timeoutCache)
             }
             rv = {url: url, urlType: record['urlType'], evilClass: record['evilClass']}
           } else {
@@ -111,7 +112,7 @@ recordsController.display = async (ctx, next) => {
         clientHmset(record['url'], record)
       }))
       await Promise.all(resultSDKLite.map(record => {
-        clientExpire(record['url'], 60 * 60 * 24 * 7)
+        clientExpire(record['url'], timeoutCache)
       }))
       // SDK中“存在”的域名返回查询结果
       result4 = resultSDK.map(record => ({url: record['url'], urlType: record['urlType'], evilClass: record['evilClass']}))
