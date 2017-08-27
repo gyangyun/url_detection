@@ -31,7 +31,7 @@ const router = Router({
   prefix: 'api'
 })
 // router.use('/', isJwtAuthenticated(), ratelimiter)
-router.use('/', isJwtAuthenticated())
+// router.use('/', isJwtAuthenticated())
 addRoutes(router, __dirname, __filename)
 
 export default router
