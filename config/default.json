@@ -19,7 +19,7 @@
         // Set low for development
         "initialDays": 1
     },
-    "limitQueries": 30,
+    "limitQueries": 100,
     "SDKEnable": false,
     "tldWhitelist" : [
         "10086.cn",

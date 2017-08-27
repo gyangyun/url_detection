@@ -1,4 +1,4 @@
-import logger from 'koa-logger'
+// import logger from 'koa-logger'
 import bodyParser from 'koa-bodyparser'
 // import path from 'path'
 // import server from 'koa-static'
@@ -12,7 +12,7 @@ import restify from './restify'
 // const keys = config.get('Customer.keys')
 
 export default function (app) {
-  app.use(logger())
+  // app.use(logger())
   app.use(bodyParser())
   // app.use(auth())
   // app.keys = keys
