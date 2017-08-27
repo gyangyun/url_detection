@@ -10,7 +10,9 @@
         "dialect": "mysql"
     },
     "redisUrl" : "redis://localhost:6379/0",
+    // Set key for jwt
     "secretOrKey": "secret",
+    // Set key for session
     "keys": ["key", "keykeys"],
     "credit": {
         "initialLimit": 100,
