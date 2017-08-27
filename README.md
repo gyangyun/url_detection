@@ -37,14 +37,20 @@ China大陆用户请自行优化网络。
 
     git clone https://github.com/fourth04/koa-rest-api.git
 
-### 修改配置文件
-
-修改config里面的数据库相关配置
-
 ### 安装依赖
 
     cd koa-rest-api
     npm install
+    // or
+    yarn
+
+### 确保没有修改做任何修改
+
+    git reset --hard
+
+### 修改配置文件
+
+    修改config里面的数据库相关配置
 
 ### 测试运行
 
