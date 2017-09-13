@@ -52,7 +52,9 @@ reportsController.list = async (ctx, next) => {
         // const startTimestamp = '2017091200'
         // const stopTimestamp = '2017091402'
         const startDate = new Date(Date.parse(startTimestamp.substring(0, 4) + '-' + startTimestamp.substring(4, 6) + '-' + startTimestamp.substring(6, 8) + 'T' + startTimestamp.substring(8, 10) + ':00:00'))
+        startDate.setHours(startDate.getHours() + 8)
         const stopDate = new Date(Date.parse(stopTimestamp.substring(0, 4) + '-' + stopTimestamp.substring(4, 6) + '-' + stopTimestamp.substring(6, 8) + 'T' + stopTimestamp.substring(8, 10) + ':00:00'))
+        stopDate.setHours(stopDate.getHours() + 8)
         const hours = (stopDate - startDate) / 1000 / 60 / 60
         let timestamps = []
 

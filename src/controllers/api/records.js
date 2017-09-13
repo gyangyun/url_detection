@@ -34,7 +34,11 @@ recordsController.show = async (ctx, next) => {
     const url = ctx.query.url
     const urlMatch = url.match(patternUrl)
 
-    const timestamp = (new Date()).toJSON().substring(0, 13).replace(/-|T/gi, '')
+    // 计算东八区的时间戳
+    const localTime = new Date()
+    localTime.setHours(localTime.getHours() + 8)
+    const timestamp = localTime.toJSON().substring(0, 13).replace(/-|T/gi, '')
+
     let report = await clientHgetall(timestamp)
     report = report || {local: 0, cloud: 0, total: 0}
     report['total'] = Number(report['total']) + 1
@@ -91,7 +95,11 @@ recordsController.display = async (ctx, next) => {
       throw new ctx.APIError('records:display_error', 'MAX limit 20/request')
     }
 
-    const timestamp = (new Date()).toJSON().substring(0, 13).replace(/-|T/gi, '')
+    // 计算东八区的时间戳
+    const localTime = new Date()
+    localTime.setHours(localTime.getHours() + 8)
+    const timestamp = localTime.toJSON().substring(0, 13).replace(/-|T/gi, '')
+
     let report = await clientHgetall(timestamp)
     report = report || {local: 0, cloud: 0, total: 0}
     report['total'] = Number(report['total']) + urls.length
