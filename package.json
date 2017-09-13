@@ -1,7 +1,7 @@
 {
-  "name": "dname_detection",
-  "version": "1.0.0",
-  "description": "dname_detection",
+  "name": "url_detection",
+  "version": "1.1.0",
+  "description": "url_detection",
   "main": "start.js",
   "author": "gdgyy",
   "license": "MIT",
