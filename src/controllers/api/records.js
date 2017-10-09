@@ -46,12 +46,12 @@ recordsController.show = async (ctx, next) => {
     if (urlMatch) {
       // 第二层白名单过滤
       if (tldWhitelist.includes(getDomain(url))) {
-        rv = {url: url, urlType: 3, evilClass: 0}
+        rv = {url: url, urlType: 3, evilClass: 0, evilType: 0}
       } else {
         // 第三层Redis过滤
         const record = await clientHgetall(url)
         if (record) {
-          rv = {url: url, urlType: record['urlType'], evilClass: record['evilClass']}
+          rv = {url: url, urlType: record['urlType'], evilClass: record['evilClass'], evilType: record['evilType']}
         } else {
           report['cloud'] = Number(report['cloud']) + 1
           // 第四层SDK过滤
@@ -61,9 +61,9 @@ recordsController.show = async (ctx, next) => {
               await clientHmset(url, record)
               await clientExpire(url, timeoutCache)
             }
-            rv = {url: url, urlType: record['urlType'], evilClass: record['evilClass']}
+            rv = {url: url, urlType: record['urlType'], evilClass: record['evilClass'], evilType: record['evilType']}
           } else {
-            rv = {url: url, urlType: 1, evilClass: 0}
+            rv = {url: url, urlType: 1, evilClass: 0, evilType: 0}
           }
         }
       }
@@ -109,18 +109,18 @@ recordsController.display = async (ctx, next) => {
     // 过滤出合法域名，生成filterUrls1
     const filterdUrls1 = urls.filter(url => url.match(patternUrl))
     // 非法域名直接返回查询结果未知
-    const result1 = urls.filter(url => !(filterdUrls1.includes(url))).map(url => ({url: url, urlType: 1, evilClass: 0}))
+    const result1 = urls.filter(url => !(filterdUrls1.includes(url))).map(url => ({url: url, urlType: 1, evilClass: 0, evilType: 0}))
 
     // 第二层白名单过滤
     // 过滤出白名单中“不存在”的域名，生成filterUrls2
     const filterdUrls2 = filterdUrls1.filter(url => !(tldWhitelist.includes(getDomain(url))))
     // (上层的filterdUrls1 - filterdUrls2)则是白名单中“存在 ”的域名，则返回安全
-    const result2 = filterdUrls1.filter(url => !(filterdUrls2.includes(url))).map(url => ({url: url, urlType: 3, evilClass: 0}))
+    const result2 = filterdUrls1.filter(url => !(filterdUrls2.includes(url))).map(url => ({url: url, urlType: 3, evilClass: 0, evilType: 0}))
 
     // 第三层Redis过滤，这里需要并行异步查询Redis
     const resultRedisOld = await Promise.all(filterdUrls2.map(url => clientHgetall(url))).catch([])
     const resultRedis = resultRedisOld.filter(x => x ? true : false)
-    const result3 = resultRedis.map(record => ({url: record['url'], urlType: record['urlType'], evilClass: record['evilClass']}))
+    const result3 = resultRedis.map(record => ({url: record['url'], urlType: record['urlType'], evilClass: record['evilClass'], evilType: record['evilType']}))
     // (上层的filterdUrls2 - Redis中查到记录的)则是Redis中“不存在”的域名，生成filterUrls3
     const filterdUrls3 = filterdUrls2.filter(url => !(result3.map(record => record['url']).includes(url)))
 
@@ -140,11 +140,11 @@ recordsController.display = async (ctx, next) => {
         clientExpire(record['url'], timeoutCache)
       }))
       // SDK中“存在”的域名返回查询结果
-      result4 = resultSDK.map(record => ({url: record['url'], urlType: record['urlType'], evilClass: record['evilClass']}))
+      result4 = resultSDK.map(record => ({url: record['url'], urlType: record['urlType'], evilClass: record['evilClass'], evilType: record['evilType']}))
       // (上层的filterdUrls3 - SDK中查到记录的)则是SDK中“不存在”的域名，生成filterUrls4，但是认为SDK是最后一个环节，未知的它也会返回
       // const filterdUrls4 = filterdUrls3.filter(url => !(result4.map(record => record['url']).includes(url)))
     } else {
-      result4 = filterdUrls3.map(url => ({url: url, urlType: 1, evilClass: 0}))
+      result4 = filterdUrls3.map(url => ({url: url, urlType: 1, evilClass: 0, evilType: 0}))
     }
 
     report['local'] = report['total'] - report['cloud']
